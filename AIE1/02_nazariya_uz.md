@@ -123,8 +123,8 @@ found = any(kw in text for kw in keywords)
 
 ```python
 CATEGORY_RULES = [
-    ("access",  ["войти", "парол"]),
-    ("billing", ["оплат", "счет"]),
+    ("access",  ["войти", "пароль", "нет доступа"]),
+    ("billing", ["оплата", "счет", "тариф", "спис"]),
 ]
 for name, words in CATEGORY_RULES:
     ...
@@ -160,9 +160,9 @@ Muhim qoidalar:
 
 Bu qulaylik ham, xavf ham: `"счет"` so'zi `"обсчетом"` ichida ham topiladi. Baseline'ning bu cheklovi ataylab qabul qilingan — keyingi loyihalarda aynan shu kamchiliklar tahlil qilinadi.
 
-### Nega ildiz (stem) bilan qidiramiz
+### Satrlarni ma'lumotnomadagidek ishlating (ildizga qisqartirmang)
 
-Rus tilida so'zlar o'zgaradi: *пароль, пароля, паролем, паролю*. Hammasini yozish o'rniga umumiy qismi `парол` ni kalit so'z qilib olamiz. `in` operatori shunda barchasini topadi.
+Rus tilida so'zlar o'zgaradi: *пароль, пароля, паролем*. `парол` ildizini olsak, hammasi topilardi, lekin bu loyihada **ma'lumotnoma satrlari aynan qanday yozilgan bo'lsa, shunday** ishlatiladi (`пароль`, `нет доступа`, `спис`, ...). Ma'lumotnomada "qo'shimcha qoidalar o'ylab topma" deyilgan: o'zboshimchalik bilan ildizga qisqartirish yangi qoida qo'shish bo'ladi va natija `expected-results.json` dan farq qilishi mumkin. Baseline'ning bu cheklovini (masalan, `пароля` matnida `пароль` topilmaydi) bilish va P2P'da aytib berish foydali.
 
 ## 5. JSON formati va `json` moduli
 
@@ -620,6 +620,7 @@ Xotira: barcha yozuvlar ro'yxatda saqlanadi → **O(n · L)**.
 
 | Xato | Nima bo'ladi | Yechim |
 |---|---|---|
+| Kalit so'zni ildizga qisqartirish (`парол`) | ma'lumotnomadan farq qiladi | satrni aynan ko'chiring |
 | `ё` ni faqat matnda almashtirib, kalit so'zda qoldirish | `счёт` kalit so'zi hech qachon topilmaydi | kalit so'zni ham `normalize` qiling |
 | Kategoriya tartibini o'zgartirish | ba'zi yozuvlar boshqa kategoriya oladi | `routing-rules.md` tartibiga rioya qiling |
 | `str(None)` ni tekshirmaslik | `"None"` matni o'tib ketadi | avval `None`ni tekshiring |

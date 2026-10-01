@@ -2,7 +2,9 @@
 
 Bu fayl loyihaning barcha topshiriqlari (1–5) uchun tayyor yechimni o'z ichiga oladi: `src/main.py` kodi, `src/README.md` va `src/manual_checks.md` shablonlari hamda Git buyruqlari.
 
-> ⚠️ **Muhim eslatma (kalit so'zlar haqida).** Menda `datasets/reference/routing-rules.md` fayli yo'q edi, faqat README'dagi misollar bor edi (`r-001` → access/medium, `r-003` → billing/low). Shuning uchun kodning boshidagi `CATEGORY_RULES` va `HIGH_MARKERS` ro'yxatlaridagi so'zlar **taxminiy**. Kod va tuzilma tayyor, lekin siz ularni `routing-rules.md` bilan **so'zma-so'z solishtirib**, kategoriyalar tartibini va so'zlarni to'g'rilashingiz shart. Aks holda `expected-results.json` bilan hamma yozuvlar mos kelmasligi mumkin. Kodning qolgan qismi (o'qish, tozalash, xatolar, CLI) qoidalarga bog'liq emas.
+> ✅ **Holat:** qoidalar endi sizning `routing-rules.md` faylingizdan olingan va kod haqiqiy `requests.json`, `requests.csv` va `expected-results.json` bilan sinab ko'rilgan: JSON bo'yicha 6/6, CSV bo'yicha 4/4 yozuv kutilganga mos keldi. Uchta xato stsenariysi ham tekshirildi (har birida tushunarli xabar, traceback yo'q, kod 1).
+>
+> ⚠️ `expected-results.json` tuzilishiga e'tibor bering: bu **ro'yxat emas, fayl nomi bo'yicha guruhlangan obyekt** (`"requests.json": [...]`, `"requests.csv": [...]`). Pastdagi solishtirish skripti shunga moslangan.
 
 ## Mundarija
 
@@ -111,19 +113,18 @@ EXIT_OK = 0
 EXIT_ERROR = 1
 
 # ---------------------------------------------------------------------------
-# Marshrutlash qoidalari.
-# DIQQAT: tartib va so'zlar datasets/reference/routing-rules.md bilan
-# BIR XIL bo'lishi kerak. Quyidagilar - namuna, ularni tekshirib to'g'rilang.
-# Kalit so'zlar ildiz (stem) ko'rinishida yoziladi: "парол" -> пароль, пароля...
+# Marshrutlash qoidalari: datasets/reference/routing-rules.md bo'yicha.
+# Kategoriyalar shu tartibda tekshiriladi, birinchi moslik tanlanadi.
+# Moslik = normalizatsiya qilingan matn ko'rsatilgan satrni o'z ichiga oladi.
 # ---------------------------------------------------------------------------
 CATEGORY_RULES = [
-    ("access", ["войти", "вход", "парол", "доступ", "логин", "авториз"]),
-    ("billing", ["оплат", "платеж", "счет", "списал", "тариф", "деньги"]),
-    ("bug", ["ошибк", "не работает", "не открыва", "сбой", "обновлени"]),
+    ("access", ["войти", "пароль", "нет доступа"]),
+    ("billing", ["оплата", "счет", "тариф", "спис"]),
+    ("bug", ["ошибка", "не работает", "падает", "недоступен"]),
 ]
 DEFAULT_CATEGORY = "other"
 
-HIGH_MARKERS = ["срочно", "критич", "немедленно", "авария", "все упало"]
+HIGH_MARKERS = ["срочно", "критично", "недоступен всем"]
 MEDIUM_CATEGORIES = {"access", "bug"}
 
 
@@ -326,33 +327,45 @@ echo $?
 
 ### Natijani expected-results.json bilan `id` bo'yicha solishtirish
 
-Bu skriptni faylga saqlash shart emas (direktoriyada ortiqcha fayl bo'lmasin), to'g'ridan-to'g'ri terminalda ishga tushiring:
+`expected-results.json` fayl nomi bo'yicha guruhlangan, shuning uchun har bir kirish fayli uchun o'z bo'limini olamiz. Skriptni faylga saqlash shart emas (direktoriyada ortiqcha fayl bo'lmasin), terminalda ishga tushiring:
 
 ```bash
 python3 - <<'EOF'
 import json
 
-def by_id(path):
+def load(path):
     with open(path, encoding="utf-8") as f:
-        return {r["id"]: r for r in json.load(f)}
+        return json.load(f)
 
-actual = by_id("src/result.json")
-expected = by_id("datasets/expected-results.json")
+expected_all = load("datasets/expected-results.json")
+checks = [
+    ("requests.json", "src/result.json"),
+    ("requests.csv", "/tmp/result_csv.json"),
+]
 
-bad = []
-for rid, exp in expected.items():
-    act = actual.get(rid)
-    if act is None or act["category"] != exp["category"] or act["priority"] != exp["priority"]:
-        bad.append((rid, exp, act))
-
-print("Kutilgan yozuvlar:", len(expected), "| Mos kelmaganlar:", len(bad))
-for rid, exp, act in bad:
-    print(rid, "kutilgan:", exp["category"], exp["priority"],
-          "| haqiqiy:", (act["category"], act["priority"]) if act else None)
+for name, result_path in checks:
+    actual = {r["id"]: r for r in load(result_path)}
+    bad = []
+    for exp in expected_all[name]:
+        act = actual.get(exp["id"])
+        if (act is None or act["category"] != exp["category"]
+                or act["priority"] != exp["priority"]):
+            bad.append((exp["id"], exp, act))
+    print(f"{name}: kutilgan {len(expected_all[name])}, mos kelmagan {len(bad)}")
+    for rid, exp, act in bad:
+        print("  ", rid, "kutilgan:", exp["category"], exp["priority"],
+              "| haqiqiy:", (act["category"], act["priority"]) if act else None)
 EOF
 ```
 
-Mos kelmaganlar chiqsa, har birining yo'lini qo'lda bosib o'ting: matn → `normalize` → qaysi kalit so'z topildi (yoki topilmadi) → `routing-rules.md` dagi qoida. Odatda sabab: kalit so'z yetishmaydi yoki kategoriyalar tartibi noto'g'ri.
+Kutilgan chiqish:
+
+```
+requests.json: kutilgan 6, mos kelmagan 0
+requests.csv: kutilgan 4, mos kelmagan 0
+```
+
+Mos kelmaganlar chiqsa, har birining yo'lini qo'lda bosib o'ting: matn → `normalize` → qaysi satr topildi (yoki topilmadi) → `routing-rules.md` dagi qoida.
 
 ### Uchta xato stsenariysi
 
@@ -463,17 +476,34 @@ Holat: PASS
 
 Jadvaldagi yacheykada qator bo'lish uchun `<br>` ishlatishingiz mumkin. Kod yacheykasida bitta son (`0` yoki `1`) yetarli.
 
-## 8. Qoidalarni routing-rules.md bilan moslashtirish
+## 8. Qoidalar va namunaviy yozuvlar tahlili
 
-Bu eng muhim qadam. Tartib:
+Qoidalar `routing-rules.md` dan so'zma-so'z ko'chirilgan. Ikkita muhim nuqta:
 
-1. `datasets/reference/routing-rules.md` ni oching.
-2. Kategoriyalarni **o'sha tartibda** `CATEGORY_RULES` ga ko'chiring (har kategoriya uchun kalit so'zlar).
-3. High-belgilarni `HIGH_MARKERS` ga, `access`/`bug` qoidasini `MEDIUM_CATEGORIES` ga tekshirib yozing. Agar ma'lumotnomada boshqa kategoriyalar (masalan, `account`, `feature`) ham bo'lsa, ularni ham shu qoidalarga moslab qo'shing.
-4. So'zlarni **ildiz** ko'rinishida kiriting, agar ma'lumotnoma to'liq so'zni bersa, to'liq so'zni qoldiring (ildizga qisqartirish kutilmagan moslik berishi mumkin).
-5. `src/result.json` ni qayta yarating va 6-bo'limdagi solishtirish skriptini ishga tushiring. Mos kelmaganlar `0` bo'lguncha takrorlang.
+1. **Satrlarni qisqartirmang.** Ma'lumotnoma "matn ko'rsatilgan satrni o'z ichiga oladi" deydi va "qo'shimcha qoidalar o'ylab topma" deydi. Masalan, `пароль` satri `пароля` ichida topilmaydi (oxirgi `ь` yo'q). `парол` ga qisqartirish o'zingizdan qoida qo'shish bo'lardi. Bu loyihaning baseline sifatidagi cheklovi, uni yashirmay qabul qilamiz.
+2. **`спис`** — ataylab qisqa satr: `списалась`, `списание` unga mos keladi.
 
-Muhim: kalit so'zlarni `id` ga bog'lab yozmang ("r-001 → access" kabi). Dastur har qanday yangi yozuvni qayta ishlay olishi kerak (P2P'da aynan shu tekshiriladi).
+Barcha 10 yozuvning yo'li (`normalize` dan keyin):
+
+| id | Matn (normalizatsiyadan keyin) | Topilgan satr | category | priority sababi |
+|---|---|---|---|---|
+| r-001 | не могу войти в личный кабинет после смены пароля | `войти` (`пароль` ham bor) | access | high yo'q → access → **medium** |
+| r-002 | срочно: сервис не работает и недоступен всем сотрудникам | access/billing yo'q; `не работает` | bug | `срочно` → **high** |
+| r-003 | дважды списалась оплата за тариф | `оплата` (`тариф`, `спис` ham bor) | billing | → **low** |
+| r-004 | на странице отчета появляется ошибка 500 | `ошибка` | bug | → **medium** |
+| r-005 | подскажите, как изменить язык интерфейса | hech biri | other | → **low** |
+| r-006 | критично: не могу войти в рабочий кабинет | `войти` | access | `критично` → **high** |
+| c-001 | не работает экспорт отчета | `не работает` | bug | → **medium** |
+| c-002 | вопрос по счету за май | `счет` (`счёту` → `счету`) | billing | → **low** |
+| c-003 | забыл пароль от личного кабинета | `пароль` | access | → **medium** |
+| c-004 | спасибо за новый интерфейс | hech biri | other | → **low** |
+
+Qiziq holatlar:
+- **r-002:** `не работает` ham, `недоступен всем` ham bor. Kategoriya baribir `bug`, ustuvorlik esa `срочно` va `недоступен всем` tufayli `high`.
+- **c-002:** `счёту` → `ё` ni `е` ga almashtirgandan keyin `счету` bo'ladi va `счет` satrini o'z ichiga oladi. Normalizatsiyasiz bu `other` bo'lib qolardi.
+- **r-003:** billing ichida bir nechta satr mos keladi, lekin natija bitta (kategoriya nomi).
+
+P2P uchun mashq: tekshiruvchi yangi yozuv qo'shadi. Masalan `"Сайт падает, срочно!"` → `bug` / `high`; `"Нет доступа к счету"` → `access` (access birinchi tekshiriladi) / `medium`. Avval o'zingiz taxmin qiling, keyin dasturni ishga tushiring.
 
 ## 9. Ixtiyoriy: kategoriyalar bo'yicha hisob
 
